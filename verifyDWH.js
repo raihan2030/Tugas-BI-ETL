@@ -1,4 +1,3 @@
-// file: verifyDWH.js
 const Database = require('better-sqlite3');
 
 try {

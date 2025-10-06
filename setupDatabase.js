@@ -1,4 +1,3 @@
-// file: setupDatabase.js
 const Database = require("better-sqlite3");
 
 function setupOLTP() {
@@ -192,7 +191,6 @@ function setupDWH() {
     console.log("Koneksi DWH ditutup.");
 }
 
-// Menjalankan kedua fungsi
 setupOLTP();
 setupDWH();
 

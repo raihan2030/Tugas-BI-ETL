@@ -1,7 +1,5 @@
-// file: runETL.js
 const Database = require('better-sqlite3');
 
-// Koneksi ke kedua database
 const oltp_db = new Database('toko_beras_oltp.db', { readonly: true });
 const dwh_db = new Database('toko_beras_dwh.db');
 
@@ -9,9 +7,6 @@ console.log('🚀 Memulai proses ETL...');
 dwh_db.exec('PRAGMA foreign_keys = ON;');
 
 const etlTransaction = dwh_db.transaction(() => {
-    // ===================================
-    // HAPUS DATA LAMA DI DWH
-    // ===================================
     console.log('1. Menghapus data lama di DWH...');
     dwh_db.exec(`
         DELETE FROM fact_sales;
@@ -25,12 +20,9 @@ const etlTransaction = dwh_db.transaction(() => {
         DELETE FROM dim_purchase_order;
     `);
 
-    // ===================================
-    // LOAD DIMENSI
-    // ===================================
     console.log('2. Memuat Tabel Dimensi...');
 
-    // 1. dim_time (Generated)
+    // dim_time (Generated)
     const insertTime = dwh_db.prepare('INSERT INTO dim_time (time_id, full_date, day, month, year, quarter, is_weekend) VALUES (?, ?, ?, ?, ?, ?, ?)');
     const startDate = new Date('2025-10-01');
     const endDate = new Date('2025-10-31');
@@ -40,7 +32,6 @@ const etlTransaction = dwh_db.transaction(() => {
         insertTime.run(time_id, d.toISOString().split('T')[0], d.getDate(), d.toLocaleString('en-US', { month: 'long'}), d.getFullYear(), 'Q4', isWeekend ? 1 : 0);
     }
 
-    // 2. Dimensi lainnya dari OLTP
     // dim_product
     const products = oltp_db.prepare('SELECT p.product_id, p.product_name, pc.category_name FROM products p JOIN product_categories pc ON p.category_id = pc.category_id').all();
     const insertProduct = dwh_db.prepare('INSERT INTO dim_product (product_id, product_name, category_name) VALUES (?, ?, ?)');
@@ -66,9 +57,7 @@ const etlTransaction = dwh_db.transaction(() => {
     const insertPO = dwh_db.prepare('INSERT INTO dim_purchase_order (purchase_order_id, purchase_order_number, order_status) VALUES (?, ?, ?)');
     purchaseOrders.forEach(po => insertPO.run(po.order_id, po.order_id, po.order_status));
     
-    // ===================================
-    // LOAD FAKTA
-    // ===================================
+
     console.log('3. Memuat Tabel Fakta...');
 
     // 1. fact_stock_order
@@ -107,12 +96,11 @@ const etlTransaction = dwh_db.transaction(() => {
     const insertFactSales = dwh_db.prepare('INSERT INTO fact_sales VALUES (?, ?, ?, ?, ?, ?, ?, ?)');
     for(const row of sales) {
         const time_id = parseInt(row.sales_date.replace(/-/g, ''));
-        const total_revenue = row.number_sold * row.unit_selling_price; // Hitung ulang untuk granularitas
+        const total_revenue = row.number_sold * row.unit_selling_price;
         insertFactSales.run(time_id, row.product_id, row.customer_id, row.employee_id, row.number_sold, row.unit_selling_price, total_revenue, 1);
     }
 });
 
-// Jalankan seluruh transaksi ETL
 etlTransaction();
 
 console.log('✅ Proses ETL selesai.');
